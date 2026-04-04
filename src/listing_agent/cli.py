@@ -1,8 +1,7 @@
 import json
-from typing import Annotated, Optional
+from typing import Annotated
 
 import typer
-from rich import print as rprint
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
@@ -26,24 +25,30 @@ def generate(
     ] = False,
 ) -> None:
     """Generate optimized listings for a product."""
-    target_platforms = [p.strip() for p in platforms.split(",")]
+    target_platforms = [p.strip() for p in platforms.split(",") if p.strip()]
+    if not target_platforms:
+        raise typer.BadParameter("At least one platform required", param_hint="--platforms")
     initial_state = {
         "raw_product_data": {"description": product},
         "target_platforms": target_platforms,
     }
 
-    result = build_graph().invoke(initial_state)
+    try:
+        result = build_graph().invoke(initial_state)
+    except Exception as e:
+        console.print(f"[red]Error running agent:[/red] {e}")
+        raise typer.Exit(1)
 
     errors = result.get("errors", [])
     if errors:
         for err in errors:
-            rprint(f"[red]Error:[/red] {err}")
+            console.print(f"[red]Error:[/red] {err}")
         raise typer.Exit(1)
 
     listings = result.get("listings", [])
 
     if output_json:
-        rprint(json.dumps([l.model_dump() for l in listings], indent=2))
+        console.print(json.dumps([l.model_dump() for l in listings], indent=2))
         return
 
     for listing in listings:
@@ -69,13 +74,13 @@ def generate(
         console.print(Panel(table, title=listing.platform.upper()))
 
     refinement_count = result.get("refinement_count", 0)
-    rprint(f"\nRefinements: {refinement_count}")
+    console.print(f"\nRefinements: {refinement_count}")
 
 
 @app.command()
 def ingest() -> None:
     """Ingest platform knowledge base documents."""
-    rprint("Ingesting knowledge base...")
+    console.print("Ingesting knowledge base...")
 
 
 if __name__ == "__main__":

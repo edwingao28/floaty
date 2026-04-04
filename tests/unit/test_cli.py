@@ -1,3 +1,4 @@
+import json
 from unittest.mock import MagicMock, patch
 
 from typer.testing import CliRunner
@@ -56,8 +57,6 @@ def test_generate_json_output():
         result = runner.invoke(app, ["generate", "A widget", "--json"])
 
     assert result.exit_code == 0
-    import json
-
     data = json.loads(result.output)
     assert isinstance(data, list)
     assert data[0]["platform"] == "amazon"
