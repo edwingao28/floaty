@@ -1,26 +1,29 @@
 import json
 from typing import Any
 
+from pydantic import ValidationError
 from langchain_anthropic import ChatAnthropic
 
-from listing_agent.state import AgentState
+from listing_agent.state import AgentState, ProductAttributes
 
 
-_ANALYZE_PROMPT = """You are a product categorization expert.
+_ANALYZE_PROMPT_TEMPLATE = """You are a product categorization expert.
 
 Analyze this product description and extract structured attributes as JSON.
 
-Product: {product_input}
+Product: PRODUCT_INPUT_PLACEHOLDER
 
 Return ONLY valid JSON with this exact structure:
-{{
-  "name": "product name (clean, title-cased)",
+{
+  "title": "product name (clean, title-cased)",
   "category": "one of: home_and_kitchen, clothing, electronics, beauty, sports, toys, books, other",
   "features": ["feature 1", "feature 2", "..."],
   "materials": ["material 1", "..."],
   "target_audience": "describe in one sentence",
-  "price_range": "budget (<$15), mid-range ($15-$50), premium ($50-$150), luxury (>$150)"
-}}"""
+  "price_range": "budget (<$15), mid-range ($15-$50), premium ($50-$150), luxury (>$150)",
+  "brand": "brand name or empty string",
+  "keywords": ["keyword1", "keyword2", "..."]
+}"""
 
 
 def get_llm() -> ChatAnthropic:
@@ -33,11 +36,15 @@ def analyze_product(state: AgentState) -> dict[str, Any]:
     # Extract description from raw_product_data
     raw = state["raw_product_data"]
     product_input = raw.get("description", str(raw))
-    prompt = _ANALYZE_PROMPT.format(product_input=product_input)
 
     try:
+        prompt = _ANALYZE_PROMPT_TEMPLATE.replace("PRODUCT_INPUT_PLACEHOLDER", product_input)
         response = llm.invoke(prompt)
         attributes = json.loads(response.content)
-        return {"product_attributes": attributes}
-    except (json.JSONDecodeError, KeyError) as e:
+        attributes["raw_input"] = product_input
+        pa = ProductAttributes(**attributes)
+        return {"product_attributes": pa}
+    except (json.JSONDecodeError, KeyError, ValidationError) as e:
         return {"errors": [f"Failed to parse product attributes: {e}"]}
+    except Exception as e:
+        return {"errors": [f"Failed to analyze product: {e}"]}
