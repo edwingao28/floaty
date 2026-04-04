@@ -32,12 +32,10 @@ def get_llm() -> ChatAnthropic:
 
 def analyze_product(state: AgentState) -> dict[str, Any]:
     """LangGraph node: parse raw_product_data → product_attributes."""
-    llm = get_llm()
-    # Extract description from raw_product_data
-    raw = state["raw_product_data"]
-    product_input = raw.get("description", str(raw))
-
     try:
+        llm = get_llm()
+        raw = state["raw_product_data"]
+        product_input = raw.get("description", str(raw))
         prompt = _ANALYZE_PROMPT_TEMPLATE.replace("PRODUCT_INPUT_PLACEHOLDER", product_input)
         response = llm.invoke(prompt)
         attributes = json.loads(response.content)
