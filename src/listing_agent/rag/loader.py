@@ -13,8 +13,9 @@ def _compute_knowledge_hash(knowledge_path: Path) -> str:
     h = hashlib.sha256()
     for platform in sorted(SUPPORTED_PLATFORMS):
         doc_path = knowledge_path / f"{platform}.md"
-        if doc_path.exists():
-            h.update(doc_path.read_bytes())
+        if not doc_path.exists():
+            raise FileNotFoundError(f"Missing knowledge doc: {doc_path}")
+        h.update(doc_path.read_bytes())
     return h.hexdigest()
 
 
@@ -29,10 +30,9 @@ def build_knowledge_base(knowledge_dir: str, persist_dir: str) -> chromadb.Colle
     collection = client.get_or_create_collection(
         name="platform_rules",
         embedding_function=ef,
-        metadata={"knowledge_hash": ""},
     )
 
-    stored_hash = collection.metadata.get("knowledge_hash", "")
+    stored_hash = (collection.metadata or {}).get("knowledge_hash", "")
     if collection.count() > 0 and stored_hash == current_hash:
         return collection  # already indexed, no changes
 
