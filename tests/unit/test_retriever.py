@@ -1,7 +1,10 @@
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import pytest
+from listing_agent.nodes.researcher import research_platforms
 from listing_agent.rag.retriever import PlatformRetriever
+from listing_agent.state import AgentState, ProductAttributes
 
 
 @pytest.fixture
@@ -33,12 +36,6 @@ def test_retriever_unknown_platform_raises(retriever):
         retriever.get_rules("tiktok_shop", "mug")
 
 
-from unittest.mock import MagicMock, patch
-
-from listing_agent.nodes.researcher import research_platforms
-from listing_agent.state import AgentState, ProductAttributes
-
-
 @pytest.fixture
 def state_with_attrs() -> AgentState:
     return {
@@ -57,8 +54,17 @@ def state_with_attrs() -> AgentState:
     }
 
 
+@pytest.fixture
+def state_without_attrs() -> AgentState:
+    return {
+        "raw_product_data": {"description": "handmade ceramic mug"},
+        "target_platforms": ["shopify", "amazon", "etsy"],
+    }
+
+
 def test_research_platforms_populates_rules(state_with_attrs):
-    with patch("listing_agent.nodes.researcher.PlatformRetriever") as MockRetriever:
+    with patch("listing_agent.nodes.researcher._retriever", None), \
+         patch("listing_agent.nodes.researcher.PlatformRetriever") as MockRetriever:
         mock_retriever = MagicMock()
         mock_retriever.get_rules.return_value = "Title max 255 chars. Use keywords."
         MockRetriever.return_value = mock_retriever
@@ -67,6 +73,37 @@ def test_research_platforms_populates_rules(state_with_attrs):
 
     assert "platform_rules" in result
     rules = result["platform_rules"]
-    # Should have rules for all 3 platforms
     assert len(rules) == 3
+    assert set(rules.keys()) == {"shopify", "amazon", "etsy"}
     assert mock_retriever.get_rules.call_count == 3
+
+
+def test_research_platforms_valueerror_fallback(state_with_attrs):
+    with patch("listing_agent.nodes.researcher._retriever", None), \
+         patch("listing_agent.nodes.researcher.PlatformRetriever") as MockRetriever:
+        mock_retriever = MagicMock()
+        mock_retriever.get_rules.side_effect = ValueError("Unknown platform: shopify")
+        MockRetriever.return_value = mock_retriever
+
+        result = research_platforms(state_with_attrs)
+
+    rules = result["platform_rules"]
+    assert all("No rules available" in v for v in rules.values())
+    assert "Unknown platform: shopify" in rules["shopify"]
+
+
+def test_research_platforms_without_product_attributes(state_without_attrs):
+    with patch("listing_agent.nodes.researcher._retriever", None), \
+         patch("listing_agent.nodes.researcher.PlatformRetriever") as MockRetriever:
+        mock_retriever = MagicMock()
+        mock_retriever.get_rules.return_value = "Some rules."
+        MockRetriever.return_value = mock_retriever
+
+        result = research_platforms(state_without_attrs)
+
+    assert "platform_rules" in result
+    rules = result["platform_rules"]
+    assert len(rules) == 3
+    # Verify get_rules was called with raw_product_data description
+    call_args = mock_retriever.get_rules.call_args_list
+    assert all("handmade ceramic mug" in str(call) for call in call_args)
