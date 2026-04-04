@@ -11,14 +11,13 @@ def _score_listing(listing: GeneratedListing) -> tuple[float, str]:
 
     # Title (0–0.3)
     title_len = len(listing.title)
-    if title_len >= 30:
+    if title_len >= 50:
+        score += 0.2  # both thresholds met
+    elif title_len >= 30:
         score += 0.1
+        issues.append("Title could be longer (< 50 chars).")
     else:
         issues.append("Title too short (< 30 chars).")
-    if title_len >= 50:
-        score += 0.1
-    else:
-        issues.append("Title too short (< 50 chars).")
     limit = _PLATFORM_TITLE_LIMITS.get(listing.platform, 255)
     if title_len <= limit:
         score += 0.1
@@ -97,9 +96,9 @@ def should_refine(state: AgentState) -> str:
         return "done"
 
     listings: list[GeneratedListing] = state.get("listings", [])
-    if listings and all(
-        (l.score or 0.0) >= quality_threshold for l in listings
-    ):
+    if not listings:
+        return "done"
+    if all((listing.score or 0.0) >= quality_threshold for listing in listings):
         return "done"
 
     return "refine"

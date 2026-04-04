@@ -225,6 +225,16 @@ def test_should_refine_uses_state_defaults():
     assert should_refine(state) == "refine"
 
 
+def test_should_refine_done_when_listings_empty():
+    state: AgentState = {
+        "raw_product_data": {},
+        "target_platforms": ["shopify"],
+        "listings": [],
+        "refinement_count": 1,
+    }
+    assert should_refine(state) == "done"
+
+
 def test_should_refine_done_when_refinement_count_exceeds_max():
     scored_listing = bad_listing().model_copy(update={"score": 0.1})
     state: AgentState = {
