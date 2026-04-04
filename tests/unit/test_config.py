@@ -16,14 +16,24 @@ def _clear_cache():
 
 @pytest.fixture(autouse=True)
 def _clean_env(monkeypatch):
-    """Remove ANTHROPIC_API_KEY so it doesn't leak from host env."""
-    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    """Remove all Settings env vars to isolate tests."""
+    for key in [
+        "ANTHROPIC_API_KEY", "ANTHROPIC_MODEL", "ANTHROPIC_FALLBACK_MODEL",
+        "QUALITY_THRESHOLD", "MAX_REFINEMENTS", "CHROMA_DB_PATH",
+        "DATABASE_URL", "LANGSMITH_TRACING", "LOG_LEVEL",
+        "SHOPIFY_SHOP_URL", "SHOPIFY_ACCESS_TOKEN", "SHOPIFY_API_VERSION",
+        "AMAZON_REFRESH_TOKEN", "AMAZON_LWA_CLIENT_ID", "AMAZON_LWA_CLIENT_SECRET",
+        "AMAZON_SELLER_ID", "AMAZON_MARKETPLACE_ID", "AMAZON_REGION",
+        "ETSY_API_KEY", "ETSY_SHOP_ID", "ETSY_ACCESS_TOKEN", "ETSY_REFRESH_TOKEN",
+    ]:
+        monkeypatch.delenv(key, raising=False)
+    get_config.cache_clear()
 
 
 def test_config_defaults(monkeypatch):
     """Set only ANTHROPIC_API_KEY, verify all defaults."""
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test-key")
-    cfg = Settings()
+    cfg = Settings(_env_file=None)
 
     assert cfg.ANTHROPIC_API_KEY == "sk-test-key"
     assert cfg.ANTHROPIC_MODEL == "claude-sonnet-4-6"
@@ -54,7 +64,7 @@ def test_config_env_override(monkeypatch):
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test-key")
     monkeypatch.setenv("QUALITY_THRESHOLD", "0.95")
     monkeypatch.setenv("MAX_REFINEMENTS", "7")
-    cfg = Settings()
+    cfg = Settings(_env_file=None)
 
     assert cfg.QUALITY_THRESHOLD == 0.95
     assert cfg.MAX_REFINEMENTS == 7
@@ -63,7 +73,7 @@ def test_config_env_override(monkeypatch):
 def test_config_requires_api_key():
     """Missing ANTHROPIC_API_KEY raises ValidationError."""
     with pytest.raises(ValidationError):
-        Settings()
+        Settings(_env_file=None)
 
 
 def test_config_quality_threshold_range(monkeypatch):
@@ -72,11 +82,11 @@ def test_config_quality_threshold_range(monkeypatch):
 
     monkeypatch.setenv("QUALITY_THRESHOLD", "1.5")
     with pytest.raises(ValidationError):
-        Settings()
+        Settings(_env_file=None)
 
     monkeypatch.setenv("QUALITY_THRESHOLD", "-0.1")
     with pytest.raises(ValidationError):
-        Settings()
+        Settings(_env_file=None)
 
 
 def test_config_max_refinements_range(monkeypatch):
@@ -85,11 +95,11 @@ def test_config_max_refinements_range(monkeypatch):
 
     monkeypatch.setenv("MAX_REFINEMENTS", "0")
     with pytest.raises(ValidationError):
-        Settings()
+        Settings(_env_file=None)
 
     monkeypatch.setenv("MAX_REFINEMENTS", "11")
     with pytest.raises(ValidationError):
-        Settings()
+        Settings(_env_file=None)
 
 
 def test_get_config_singleton(monkeypatch):
