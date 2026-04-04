@@ -1,11 +1,13 @@
+from pathlib import Path
+
 import pytest
 from listing_agent.rag.retriever import PlatformRetriever
 
 
 @pytest.fixture
 def retriever(tmp_path):
-    knowledge_dir = "src/listing_agent/rag/knowledge_base"
-    return PlatformRetriever(knowledge_dir=knowledge_dir, persist_dir=str(tmp_path / "chroma"))
+    knowledge_dir = Path(__file__).parent.parent.parent / "src/listing_agent/rag/knowledge_base"
+    return PlatformRetriever(knowledge_dir=str(knowledge_dir), persist_dir=str(tmp_path / "chroma"))
 
 
 def test_retriever_returns_shopify_rules(retriever):
