@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import operator
-from typing import Annotated, TypedDict
+from typing import Annotated, Any, Literal, TypedDict
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class ProductAttributes(BaseModel):
@@ -23,18 +23,18 @@ class ProductAttributes(BaseModel):
 class PlatformRules(BaseModel):
     """Retrieved SEO rules per platform."""
 
-    platform: str  # "shopify" | "amazon" | "etsy"
-    title_constraints: dict = {}
-    description_constraints: dict = {}
-    keyword_rules: dict = {}
-    category_taxonomy: dict = {}
+    platform: Literal["shopify", "amazon", "etsy"]
+    title_constraints: dict[str, Any] = {}
+    description_constraints: dict[str, Any] = {}
+    keyword_rules: dict[str, Any] = {}
+    category_taxonomy: dict[str, Any] = {}
     additional_rules: list[str] = []
 
 
 class GeneratedListing(BaseModel):
     """A single platform listing."""
 
-    platform: str
+    platform: Literal["shopify", "amazon", "etsy"]
     title: str
     description: str
     bullet_points: list[str] = []
@@ -43,22 +43,25 @@ class GeneratedListing(BaseModel):
     seo_description: str = ""
     backend_keywords: str = ""
     category_id: str = ""
-    score: float | None = None
+    score: float | None = Field(default=None, ge=0.0, le=1.0)
     feedback: str | None = None
-    iteration: int = 0
+    iteration: int = Field(default=0, ge=0)
 
 
-class AgentState(TypedDict, total=False):
+class _AgentStateRequired(TypedDict):
+    raw_product_data: dict[str, Any]
+    target_platforms: list[str]
+
+
+class AgentState(_AgentStateRequired, total=False):
     """LangGraph root state flowing through every node."""
 
-    raw_product_data: dict
     product_attributes: ProductAttributes | None
-    target_platforms: list[str]
     platform_rules: list[PlatformRules]
     listings: Annotated[list[GeneratedListing], operator.add]
     approved_listings: list[GeneratedListing]
     refinement_count: int
     max_refinements: int
     quality_threshold: float
-    publish_results: dict
+    publish_results: dict[str, Any]
     errors: Annotated[list[str], operator.add]

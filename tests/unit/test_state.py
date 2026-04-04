@@ -179,3 +179,32 @@ def test_agent_state_errors_reducer():
 
     merged = reducer(["error 1"], ["error 2", "error 3"])
     assert merged == ["error 1", "error 2", "error 3"]
+
+
+# --- Rejection tests ---
+
+
+def test_platform_rules_rejects_missing_platform():
+    """PlatformRules without platform raises ValidationError."""
+    with pytest.raises(ValidationError):
+        PlatformRules()
+
+
+def test_generated_listing_rejects_missing_required():
+    """GeneratedListing without title and description raises ValidationError."""
+    with pytest.raises(ValidationError):
+        GeneratedListing(platform="shopify")
+
+
+def test_generated_listing_rejects_invalid_platform():
+    """GeneratedListing with invalid platform raises ValidationError."""
+    with pytest.raises(ValidationError):
+        GeneratedListing(platform="ebay", title="x", description="x")
+
+
+def test_generated_listing_rejects_score_out_of_range():
+    """score must be 0.0-1.0."""
+    with pytest.raises(ValidationError):
+        GeneratedListing(platform="shopify", title="x", description="x", score=2.0)
+    with pytest.raises(ValidationError):
+        GeneratedListing(platform="shopify", title="x", description="x", score=-0.5)
