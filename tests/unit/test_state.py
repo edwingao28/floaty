@@ -153,22 +153,16 @@ def test_agent_state_structure():
     assert state["quality_threshold"] == 0.8
 
 
-def test_agent_state_listings_reducer():
+def test_agent_state_listings_no_reducer():
+    """listings is a plain list — no operator.add reducer (overwrite semantics)."""
+    import typing
     hints = get_type_hints(AgentState, include_extras=True)
-    metadata = hints["listings"].__metadata__
-    reducer = metadata[0]
-    assert reducer is operator.add
-
-    list_a = [
-        GeneratedListing(platform="shopify", title="A", description="desc A"),
-    ]
-    list_b = [
-        GeneratedListing(platform="amazon", title="B", description="desc B"),
-    ]
-    merged = reducer(list_a, list_b)
-    assert len(merged) == 2
-    assert merged[0].platform == "shopify"
-    assert merged[1].platform == "amazon"
+    listings_hint = hints["listings"]
+    # Should NOT be Annotated — plain list[GeneratedListing]
+    assert not hasattr(listings_hint, "__metadata__"), (
+        "listings should be a plain list, not Annotated with a reducer"
+    )
+    assert listings_hint == list[GeneratedListing]
 
 
 def test_agent_state_errors_reducer():

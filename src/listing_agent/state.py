@@ -58,7 +58,7 @@ class AgentState(_AgentStateRequired, total=False):
 
     product_attributes: ProductAttributes | None
     platform_rules: list[PlatformRules]
-    listings: Annotated[list[GeneratedListing], operator.add]
+    listings: list[GeneratedListing]
     approved_listings: list[GeneratedListing]
     refinement_count: int
     max_refinements: int
