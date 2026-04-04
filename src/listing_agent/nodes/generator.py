@@ -81,7 +81,6 @@ def generate_listings(state: AgentState) -> dict[str, Any]:
     llm = get_llm()
     for platform in state["target_platforms"]:
         try:
-            # platform_rules is dict[str, str] from researcher (typed as list[PlatformRules] in state, reconciled in Task 8)
             rules = platform_rules.get(platform, "No specific rules available.")
             instructions = _PLATFORM_INSTRUCTIONS.get(platform, "")
 

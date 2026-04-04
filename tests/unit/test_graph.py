@@ -1,8 +1,6 @@
 """Unit tests for the LangGraph graph wiring (graph.py)."""
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from listing_agent.graph import build_graph
 
 # ---------------------------------------------------------------------------
@@ -132,7 +130,7 @@ def test_graph_error_propagation_invalid_analyzer_json():
     bad_llm = _make_llm_mock("not valid json {{{")
     retriever_mock = _make_retriever_mock()
 
-    # Generator is never reached (product_attributes will be None), but we
+    # Generator returns early because product_attributes is None, but we
     # still need a mock in place to avoid real LLM calls if something leaks.
     generator_llm = _make_llm_mock(_GENERATOR_JSON)
 

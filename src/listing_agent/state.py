@@ -57,7 +57,7 @@ class AgentState(_AgentStateRequired, total=False):
     """LangGraph root state flowing through every node."""
 
     product_attributes: ProductAttributes | None
-    platform_rules: list[PlatformRules]
+    platform_rules: dict[str, str]
     listings: list[GeneratedListing]
     approved_listings: list[GeneratedListing]
     refinement_count: int
