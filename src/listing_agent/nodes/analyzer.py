@@ -4,6 +4,7 @@ from typing import Any
 from pydantic import ValidationError
 from langchain_anthropic import ChatAnthropic
 
+from listing_agent.nodes._llm import invoke_with_fallback
 from listing_agent.state import AgentState, ProductAttributes
 
 
@@ -33,12 +34,11 @@ def get_llm() -> ChatAnthropic:
 def analyze_product(state: AgentState) -> dict[str, Any]:
     """LangGraph node: parse raw_product_data → product_attributes."""
     try:
-        llm = get_llm()
         raw = state["raw_product_data"]
         product_input = raw.get("description", str(raw))
         prompt = _ANALYZE_PROMPT_TEMPLATE.replace("PRODUCT_INPUT_PLACEHOLDER", product_input)
-        response = llm.invoke(prompt)
-        attributes = json.loads(response.content)
+        content = invoke_with_fallback(prompt)
+        attributes = json.loads(content)
         attributes["raw_input"] = product_input
         pa = ProductAttributes(**attributes)
         return {"product_attributes": pa}

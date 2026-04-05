@@ -55,15 +55,6 @@ _INITIAL_STATE = {
 }
 
 
-def _make_llm_mock(json_str: str) -> MagicMock:
-    """Return a mock that behaves like ChatAnthropic.invoke()."""
-    llm = MagicMock()
-    response = MagicMock()
-    response.content = json_str
-    llm.invoke.return_value = response
-    return llm
-
-
 def _make_retriever_mock() -> MagicMock:
     retriever = MagicMock()
     retriever.get_rules.return_value = "No specific rules."
@@ -77,13 +68,21 @@ def _make_retriever_mock() -> MagicMock:
 
 def test_graph_end_to_end_happy_path():
     """Graph runs to completion with valid mocks; final state has scored listings."""
-    analyzer_llm = _make_llm_mock(_ANALYZER_JSON)
-    generator_llm = _make_llm_mock(_GENERATOR_JSON)
     retriever_mock = _make_retriever_mock()
 
+    # First call (analyzer) → analyzer JSON; subsequent calls (generator) → generator JSON
+    call_count = {"n": 0}
+
+    def fake_analyzer(prompt: str) -> str:
+        return _ANALYZER_JSON
+
+    def fake_generator(prompt: str) -> str:
+        call_count["n"] += 1
+        return _GENERATOR_JSON
+
     with (
-        patch("listing_agent.nodes.analyzer.get_llm", return_value=analyzer_llm),
-        patch("listing_agent.nodes.generator.get_llm", return_value=generator_llm),
+        patch("listing_agent.nodes.analyzer.invoke_with_fallback", side_effect=fake_analyzer),
+        patch("listing_agent.nodes.generator.invoke_with_fallback", side_effect=fake_generator),
         patch("listing_agent.nodes.researcher._retriever", None),
         patch(
             "listing_agent.nodes.researcher.PlatformRetriever",
@@ -121,15 +120,13 @@ def test_graph_end_to_end_happy_path():
 
 def test_graph_refinement_loop_reaches_max():
     """Short listing scores below threshold; loop runs until max_refinements=2."""
-    analyzer_llm = _make_llm_mock(_ANALYZER_JSON)
-    generator_llm = _make_llm_mock(_GENERATOR_JSON_SHORT)
     retriever_mock = _make_retriever_mock()
 
     initial_state = {**_INITIAL_STATE, "max_refinements": 2}
 
     with (
-        patch("listing_agent.nodes.analyzer.get_llm", return_value=analyzer_llm),
-        patch("listing_agent.nodes.generator.get_llm", return_value=generator_llm),
+        patch("listing_agent.nodes.analyzer.invoke_with_fallback", return_value=_ANALYZER_JSON),
+        patch("listing_agent.nodes.generator.invoke_with_fallback", return_value=_GENERATOR_JSON_SHORT),
         patch("listing_agent.nodes.researcher._retriever", None),
         patch(
             "listing_agent.nodes.researcher.PlatformRetriever",
@@ -158,16 +155,11 @@ def test_graph_refinement_loop_reaches_max():
 
 def test_graph_error_propagation_invalid_analyzer_json():
     """Analyzer returns invalid JSON → errors list is populated, graph still terminates."""
-    bad_llm = _make_llm_mock("not valid json {{{")
     retriever_mock = _make_retriever_mock()
 
-    # Generator returns early because product_attributes is None, but we
-    # still need a mock in place to avoid real LLM calls if something leaks.
-    generator_llm = _make_llm_mock(_GENERATOR_JSON)
-
     with (
-        patch("listing_agent.nodes.analyzer.get_llm", return_value=bad_llm),
-        patch("listing_agent.nodes.generator.get_llm", return_value=generator_llm),
+        patch("listing_agent.nodes.analyzer.invoke_with_fallback", return_value="not valid json {{{}"),
+        patch("listing_agent.nodes.generator.invoke_with_fallback", return_value=_GENERATOR_JSON),
         patch("listing_agent.nodes.researcher._retriever", None),
         patch(
             "listing_agent.nodes.researcher.PlatformRetriever",
@@ -226,8 +218,6 @@ def test_selective_refinement_preserves_passing():
         raw_input="handmade ceramic mug",
     )
 
-    generator_llm = _make_llm_mock(_GENERATOR_JSON)
-
     state = {
         "raw_product_data": {"description": "handmade ceramic mug"},
         "target_platforms": ["shopify", "amazon"],
@@ -238,7 +228,13 @@ def test_selective_refinement_preserves_passing():
         "refinement_count": 1,
     }
 
-    with patch("listing_agent.nodes.generator.get_llm", return_value=generator_llm):
+    invoke_calls = []
+
+    def fake_invoke(prompt: str) -> str:
+        invoke_calls.append(prompt)
+        return _GENERATOR_JSON
+
+    with patch("listing_agent.nodes.generator.invoke_with_fallback", side_effect=fake_invoke):
         from listing_agent.nodes.generator import generate_listings
         result = generate_listings(state)
 
@@ -251,7 +247,7 @@ def test_selective_refinement_preserves_passing():
     assert shopify_result.score == 0.9  # preserved original score
 
     # LLM was only called once (for amazon)
-    assert generator_llm.invoke.call_count == 1
+    assert len(invoke_calls) == 1
 
 
 # ---------------------------------------------------------------------------
@@ -262,3 +258,35 @@ def test_selective_refinement_preserves_passing():
 def test_graph_accepts_checkpointer():
     graph = build_graph(checkpointer=None)
     assert graph is not None
+
+
+# ---------------------------------------------------------------------------
+# Test 6: include_publishing=False routes to END
+# ---------------------------------------------------------------------------
+
+
+def test_graph_no_publishing_routes_to_end():
+    """build_graph(include_publishing=False) skips approval+publisher nodes."""
+    retriever_mock = _make_retriever_mock()
+
+    with (
+        patch("listing_agent.nodes.analyzer.invoke_with_fallback", return_value=_ANALYZER_JSON),
+        patch("listing_agent.nodes.generator.invoke_with_fallback", return_value=_GENERATOR_JSON),
+        patch("listing_agent.nodes.researcher._retriever", None),
+        patch(
+            "listing_agent.nodes.researcher.PlatformRetriever",
+            return_value=retriever_mock,
+        ),
+        patch("listing_agent.nodes.critic.get_config", return_value=_make_config_mock()),
+        patch("listing_agent.nodes.critic.LLMJudge") as mock_judge_cls,
+    ):
+        mock_judge_inst = MagicMock()
+        from listing_agent.scoring.llm_judge import JudgeResult
+        mock_judge_inst.evaluate.return_value = JudgeResult(composite=0.8, improvements=[])
+        mock_judge_cls.return_value = mock_judge_inst
+        graph = build_graph(include_publishing=False)
+        result = graph.invoke(_INITIAL_STATE)
+
+    assert "listings" in result
+    # No publish_results since publisher was skipped
+    assert "publish_results" not in result or result.get("publish_results") is None

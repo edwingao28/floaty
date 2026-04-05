@@ -1,6 +1,7 @@
 import json
 from typing import Any
 
+from listing_agent.nodes._llm import invoke_with_fallback
 from listing_agent.nodes.analyzer import get_llm
 from listing_agent.state import AgentState, GeneratedListing
 
@@ -93,7 +94,6 @@ def generate_listings(state: AgentState) -> dict[str, Any]:
     platform_rules = state.get("platform_rules", {})
     iteration = state.get("refinement_count", 0)
 
-    llm = get_llm()
     for platform in platforms_to_generate:
         try:
             rules = platform_rules.get(platform, "No specific rules available.")
@@ -127,8 +127,8 @@ def generate_listings(state: AgentState) -> dict[str, Any]:
                 .replace("REFINEMENT_PLACEHOLDER", refinement_block)
             )
 
-            response = llm.invoke(prompt)
-            data = json.loads(response.content)
+            content = invoke_with_fallback(prompt)
+            data = json.loads(content)
             data["platform"] = platform
             data["iteration"] = iteration
             listing = GeneratedListing(**data)

@@ -47,14 +47,7 @@ def _mock_llm_json(platform: str = "shopify") -> str:
 
 
 def test_generate_listings_happy_path(base_state):
-    mock_response = MagicMock()
-    mock_response.content = _mock_llm_json("shopify")
-
-    with patch("listing_agent.nodes.generator.get_llm") as mock_get_llm:
-        mock_llm = MagicMock()
-        mock_llm.invoke.return_value = mock_response
-        mock_get_llm.return_value = mock_llm
-
+    with patch("listing_agent.nodes.generator.invoke_with_fallback", return_value=_mock_llm_json("shopify")):
         result = generate_listings(base_state)
 
     assert "listings" in result
@@ -67,14 +60,7 @@ def test_generate_listings_happy_path(base_state):
 
 
 def test_generate_listings_malformed_json(base_state):
-    mock_response = MagicMock()
-    mock_response.content = "this is not valid json {{{}"
-
-    with patch("listing_agent.nodes.generator.get_llm") as mock_get_llm:
-        mock_llm = MagicMock()
-        mock_llm.invoke.return_value = mock_response
-        mock_get_llm.return_value = mock_llm
-
+    with patch("listing_agent.nodes.generator.invoke_with_fallback", return_value="this is not valid json {{{}"):
         result = generate_listings(base_state)
 
     assert "errors" in result
@@ -93,21 +79,20 @@ def test_generate_listings_refinement_mode(base_state, product_attrs):
     )
     base_state["listings"] = [previous_listing]
 
-    mock_response = MagicMock()
-    mock_response.content = _mock_llm_json("shopify")
+    captured_prompts = []
 
-    with patch("listing_agent.nodes.generator.get_llm") as mock_get_llm:
-        mock_llm = MagicMock()
-        mock_llm.invoke.return_value = mock_response
-        mock_get_llm.return_value = mock_llm
+    def capture_prompt(prompt: str) -> str:
+        captured_prompts.append(prompt)
+        return _mock_llm_json("shopify")
 
+    with patch("listing_agent.nodes.generator.invoke_with_fallback", side_effect=capture_prompt):
         result = generate_listings(base_state)
 
-    # Verify the prompt contained feedback and previous listing
-    call_args = mock_llm.invoke.call_args[0][0]
-    assert "Make the title more descriptive" in call_args
-    assert "Old Title" in call_args
-    assert "Previous Listing" in call_args
+    assert captured_prompts
+    call_prompt = captured_prompts[0]
+    assert "Make the title more descriptive" in call_prompt
+    assert "Old Title" in call_prompt
+    assert "Previous Listing" in call_prompt
 
     assert "listings" in result
     assert isinstance(result["listings"][0], GeneratedListing)
@@ -129,23 +114,37 @@ def test_generate_listings_multiple_platforms(base_state):
     base_state["platform_rules"]["etsy"] = "Keyword-rich tags."
 
     call_count = 0
+    platforms = ["shopify", "amazon", "etsy"]
 
-    def make_response(*args, **kwargs):
+    def make_response(prompt: str) -> str:
         nonlocal call_count
-        platforms = ["shopify", "amazon", "etsy"]
         platform = platforms[call_count]
         call_count += 1
-        resp = MagicMock()
-        resp.content = _mock_llm_json(platform)
-        return resp
+        return _mock_llm_json(platform)
 
-    with patch("listing_agent.nodes.generator.get_llm") as mock_get_llm:
-        mock_llm = MagicMock()
-        mock_llm.invoke.side_effect = make_response
-        mock_get_llm.return_value = mock_llm
-
+    with patch("listing_agent.nodes.generator.invoke_with_fallback", side_effect=make_response):
         result = generate_listings(base_state)
 
     assert len(result["listings"]) == 3
-    platforms = {l.platform for l in result["listings"]}
-    assert platforms == {"shopify", "amazon", "etsy"}
+    result_platforms = {l.platform for l in result["listings"]}
+    assert result_platforms == {"shopify", "amazon", "etsy"}
+
+
+def test_generate_listings_uses_fallback_on_primary_failure(base_state):
+    """Falls back to secondary model when primary raises."""
+    fallback_content = _mock_llm_json("shopify")
+    mock_cfg = MagicMock()
+    mock_cfg.ANTHROPIC_MODEL = "claude-sonnet-4-6"
+    mock_cfg.ANTHROPIC_FALLBACK_MODEL = "claude-haiku-4-5-20251001"
+    with patch("listing_agent.nodes._llm.get_config", return_value=mock_cfg), \
+         patch("listing_agent.nodes._llm.ChatAnthropic") as MockLLM:
+        primary_instance = MagicMock()
+        primary_instance.invoke.side_effect = Exception("Rate limit")
+        fallback_instance = MagicMock()
+        fallback_instance.invoke.return_value = MagicMock(content=fallback_content)
+        MockLLM.side_effect = [primary_instance, fallback_instance]
+
+        result = generate_listings(base_state)
+
+    assert "listings" in result
+    assert result["listings"][0].platform == "shopify"
