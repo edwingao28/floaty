@@ -24,6 +24,9 @@ def approve_listings(state: AgentState) -> dict[str, Any]:
 
     decision = interrupt({"listings": previews})
 
+    if not isinstance(decision, dict):
+        return {"approved_listings": listings}
+
     action = decision.get("decision", "approve_all")
 
     if action == "reject_all":
@@ -31,7 +34,7 @@ def approve_listings(state: AgentState) -> dict[str, Any]:
 
     if action == "approve_selective":
         approved_platforms = set(decision.get("platforms", []))
-        approved = [l for l in listings if l.platform in approved_platforms]
+        approved = [listing for listing in listings if listing.platform in approved_platforms]
         return {"approved_listings": approved}
 
     # approve_all (default)
