@@ -64,4 +64,5 @@ class AgentState(_AgentStateRequired, total=False):
     max_refinements: int
     quality_threshold: float
     publish_results: dict[str, Any]
+    score_history: list[float]  # per-iteration avg scores for convergence detection
     errors: Annotated[list[str], operator.add]
