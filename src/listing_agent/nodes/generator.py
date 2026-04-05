@@ -74,12 +74,27 @@ def generate_listings(state: AgentState) -> dict[str, Any]:
     if attrs is None:
         return {"errors": ["No product_attributes in state"]}
 
-    platform_rules = state.get("platform_rules", {})
+    quality_threshold = state.get("quality_threshold", 0.8)
     existing_listings = state.get("listings", [])
+
+    # Selective refinement: only regenerate below-threshold listings
+    platforms_to_generate = []
+    carry_forward: list[GeneratedListing] = []
+    for platform in state["target_platforms"]:
+        existing = next((l for l in existing_listings if l.platform == platform), None)
+        if existing and existing.score is not None and existing.score >= quality_threshold:
+            carry_forward.append(existing)
+        else:
+            platforms_to_generate.append(platform)
+
+    if not platforms_to_generate:
+        return {"listings": carry_forward}
+
+    platform_rules = state.get("platform_rules", {})
     iteration = state.get("refinement_count", 0)
 
     llm = get_llm()
-    for platform in state["target_platforms"]:
+    for platform in platforms_to_generate:
         try:
             rules = platform_rules.get(platform, "No specific rules available.")
             instructions = _PLATFORM_INSTRUCTIONS.get(platform, "")
@@ -122,8 +137,9 @@ def generate_listings(state: AgentState) -> dict[str, Any]:
             errors.append(f"Failed to generate listing for {platform}: {e}")
 
     result: dict[str, Any] = {}
-    if listings:
-        result["listings"] = listings
+    all_listings = carry_forward + listings
+    if all_listings:
+        result["listings"] = all_listings
     if errors:
         result["errors"] = errors
     return result

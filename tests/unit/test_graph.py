@@ -179,3 +179,66 @@ def test_graph_error_propagation_invalid_analyzer_json():
     errors = result.get("errors", [])
     assert len(errors) >= 1
     assert any("Failed to" in e for e in errors)
+
+
+# ---------------------------------------------------------------------------
+# Test 4: Selective refinement
+# ---------------------------------------------------------------------------
+
+
+def test_selective_refinement_preserves_passing():
+    """Only below-threshold listings are re-generated."""
+    from listing_agent.state import GeneratedListing, ProductAttributes
+
+    # Two platforms: shopify passes (score >= 0.8), amazon fails (score < 0.8)
+    shopify_passing = GeneratedListing(
+        platform="shopify",
+        title="Handmade Ceramic Coffee Mug 12oz | Minimalist Design",
+        description="A beautifully handcrafted ceramic mug perfect for coffee lovers. 12oz capacity.",
+        tags=["ceramic mug", "handmade"],
+        seo_title="Handmade Ceramic Mug",
+        score=0.9,  # above threshold — should NOT be regenerated
+        feedback="Looks good.",
+    )
+    amazon_failing = GeneratedListing(
+        platform="amazon",
+        title="Mug",
+        description="A mug.",
+        score=0.2,  # below threshold — should be regenerated
+        feedback="VIOLATIONS: Title too short",
+    )
+
+    attrs = ProductAttributes(
+        title="Handmade Ceramic Mug",
+        category="home_and_kitchen",
+        features=["12oz"],
+        keywords=["ceramic mug"],
+        raw_input="handmade ceramic mug",
+    )
+
+    generator_llm = _make_llm_mock(_GENERATOR_JSON)
+
+    state = {
+        "raw_product_data": {"description": "handmade ceramic mug"},
+        "target_platforms": ["shopify", "amazon"],
+        "product_attributes": attrs,
+        "platform_rules": {},
+        "listings": [shopify_passing, amazon_failing],
+        "quality_threshold": 0.8,
+        "refinement_count": 1,
+    }
+
+    with patch("listing_agent.nodes.generator.get_llm", return_value=generator_llm):
+        from listing_agent.nodes.generator import generate_listings
+        result = generate_listings(state)
+
+    assert "listings" in result
+    result_listings = result["listings"]
+
+    # shopify was preserved (not regenerated)
+    shopify_result = next((l for l in result_listings if l.platform == "shopify"), None)
+    assert shopify_result is not None
+    assert shopify_result.score == 0.9  # preserved original score
+
+    # LLM was only called once (for amazon)
+    assert generator_llm.invoke.call_count == 1
