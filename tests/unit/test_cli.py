@@ -87,7 +87,51 @@ def test_generate_platforms_option():
     assert call_args["raw_product_data"] == {"description": "widget"}
 
 
-def test_ingest_command():
-    result = runner.invoke(app, ["ingest"])
+def test_generate_no_publish_by_default():
+    """generate without --publish calls build_graph(include_publishing=False)."""
+    listings = [_make_listing("shopify")]
+    mock_build = _mock_graph(listings)
+
+    with patch("listing_agent.cli.build_graph", mock_build) as mb:
+        result = runner.invoke(app, ["generate", "a widget"])
+
     assert result.exit_code == 0
-    assert "Ingesting" in result.output
+    mb.assert_called_once_with(include_publishing=False)
+
+
+def test_generate_publish_flag():
+    """--publish passes include_publishing=True to build_graph."""
+    listings = [_make_listing("shopify")]
+    mock_build = _mock_graph(listings)
+
+    with patch("listing_agent.cli.build_graph", mock_build) as mb:
+        result = runner.invoke(app, ["generate", "a widget", "--publish"])
+
+    assert result.exit_code == 0
+    mb.assert_called_once_with(include_publishing=True)
+
+
+def test_ingest_command():
+    mock_collection = MagicMock()
+    mock_collection.count.return_value = 42
+
+    with patch("listing_agent.cli.get_config") as mock_cfg, \
+         patch("listing_agent.rag.loader.build_knowledge_base", return_value=mock_collection):
+        mock_cfg.return_value = MagicMock(CHROMA_DB_PATH="./data/chroma_db")
+        result = runner.invoke(app, ["ingest"])
+
+    assert result.exit_code == 0
+    assert "Ingested" in result.output or "Ingesting" in result.output
+
+
+def test_ingest_command_custom_path():
+    mock_collection = MagicMock()
+    mock_collection.count.return_value = 10
+
+    with patch("listing_agent.cli.get_config") as mock_cfg, \
+         patch("listing_agent.rag.loader.build_knowledge_base", return_value=mock_collection) as mock_build_kb:
+        mock_cfg.return_value = MagicMock(CHROMA_DB_PATH="./data/chroma_db")
+        result = runner.invoke(app, ["ingest", "--path", "/custom/path"])
+
+    assert result.exit_code == 0
+    mock_build_kb.assert_called_once_with("/custom/path", "./data/chroma_db")

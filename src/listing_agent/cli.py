@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 from typing import Annotated
 
 import typer
@@ -6,6 +7,7 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
+from listing_agent.config import get_config
 from listing_agent.graph import build_graph
 
 app = typer.Typer(name="listing-agent", help="E-commerce listing optimization agent")
@@ -23,6 +25,10 @@ def generate(
         bool,
         typer.Option("--json", help="Output raw JSON"),
     ] = False,
+    publish: Annotated[
+        bool,
+        typer.Option("--publish/--no-publish", help="Publish approved listings after generation"),
+    ] = False,
 ) -> None:
     """Generate optimized listings for a product."""
     target_platforms = [p.strip() for p in platforms.split(",") if p.strip()]
@@ -34,7 +40,7 @@ def generate(
     }
 
     try:
-        result = build_graph().invoke(initial_state)
+        result = build_graph(include_publishing=publish).invoke(initial_state)
     except Exception as e:
         console.print(f"[red]Error running agent:[/red] {e}")
         raise typer.Exit(1)
@@ -78,9 +84,17 @@ def generate(
 
 
 @app.command()
-def ingest() -> None:
-    """Ingest platform knowledge base documents."""
-    console.print("Ingesting knowledge base...")
+def ingest(
+    path: Annotated[str, typer.Option(help="Knowledge base path")] = "",
+) -> None:
+    """Ingest platform knowledge base documents into ChromaDB."""
+    from listing_agent.rag.loader import build_knowledge_base
+
+    config = get_config()
+    knowledge_dir = path or str(Path(__file__).parent / "rag" / "knowledge_base")
+    with console.status("[bold green]Ingesting knowledge base...[/]"):
+        collection = build_knowledge_base(knowledge_dir, config.CHROMA_DB_PATH)
+    console.print(f"[green]Ingested {collection.count()} chunks into ChromaDB[/green]")
 
 
 if __name__ == "__main__":
