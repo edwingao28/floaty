@@ -2,7 +2,6 @@ import json
 from typing import Any
 
 from pydantic import ValidationError
-from langchain_anthropic import ChatAnthropic
 
 from listing_agent.nodes._llm import invoke_with_fallback
 from listing_agent.state import AgentState, ProductAttributes
@@ -25,10 +24,6 @@ Return ONLY valid JSON with this exact structure:
   "brand": "brand name or empty string",
   "keywords": ["keyword1", "keyword2", "..."]
 }"""
-
-
-def get_llm() -> ChatAnthropic:
-    return ChatAnthropic(model="claude-sonnet-4-6", temperature=0)
 
 
 def analyze_product(state: AgentState) -> dict[str, Any]:

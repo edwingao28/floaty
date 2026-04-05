@@ -10,7 +10,7 @@ def invoke_with_fallback(prompt: str) -> str:
     config = get_config()
     try:
         llm = ChatAnthropic(model=config.ANTHROPIC_MODEL, temperature=0)
-        return llm.invoke(prompt).content
+        return str(llm.invoke(prompt).content)
     except Exception:
         llm = ChatAnthropic(model=config.ANTHROPIC_FALLBACK_MODEL, temperature=0)
-        return llm.invoke(prompt).content
+        return str(llm.invoke(prompt).content)
