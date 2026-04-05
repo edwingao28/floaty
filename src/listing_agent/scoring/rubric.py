@@ -38,6 +38,7 @@ class ScoringRubric:
     ) -> CompositeResult:
         violations = list(rules_result.violations)
         improvements = list(rules_result.suggestions)
+        keep: list[str] = [dim for dim, score in rules_result.dimensions.items() if score >= 1.0]
 
         if judge_result is not None and not judge_result.errors:
             overall = (
@@ -51,6 +52,7 @@ class ScoringRubric:
                 llm_score=judge_result.composite,
                 violations=violations,
                 improvements=improvements,
+                keep=keep,
             )
         return CompositeResult(
             overall_score=rules_result.composite,
@@ -58,6 +60,7 @@ class ScoringRubric:
             llm_score=None,
             violations=violations,
             improvements=improvements,
+            keep=keep,
         )
 
     def is_converged(self, scores: list[float]) -> bool:

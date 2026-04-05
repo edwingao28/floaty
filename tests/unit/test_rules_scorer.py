@@ -65,7 +65,9 @@ def test_title_over_platform_limit(scorer):
         description="desc " * 50,
     )
     result = scorer.score(listing, primary_keywords=[])
-    assert result.dimensions["char_limit_compliance"] == 0.0
+    # title_length_compliance owns the penalty; char_limit_compliance is unaffected
+    assert result.dimensions["title_length_compliance"] == 0.0
+    assert result.dimensions["char_limit_compliance"] == 1.0
 
 
 def test_bullet_compliance_amazon_exact_5(scorer):

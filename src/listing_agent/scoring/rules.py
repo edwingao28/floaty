@@ -167,8 +167,6 @@ class RulesScorer:
 
     def _char_limits(self, listing: GeneratedListing, violations: list[str]) -> float:
         platform = listing.platform
-        if len(listing.title) > _TITLE_MAX.get(platform, 255):
-            return 0.0
         desc_max = _DESC_MAX.get(platform, 100_000)
         if len(listing.description) > desc_max:
             violations.append(f"Description exceeds {platform} limit ({len(listing.description)}/{desc_max}).")

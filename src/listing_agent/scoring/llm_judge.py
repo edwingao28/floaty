@@ -71,17 +71,21 @@ class JudgeResult:
 
 
 def _get_judge_llm() -> ChatAnthropic:
-    return ChatAnthropic(model="claude-haiku-4-5-20251001", temperature=0)
+    from listing_agent.config import get_config
+    config = get_config()
+    return ChatAnthropic(model=config.ANTHROPIC_FALLBACK_MODEL, temperature=0)
 
 
 class LLMJudge:
+    def __init__(self) -> None:
+        self._llm = _get_judge_llm()
+
     def evaluate(
         self,
         listing: GeneratedListing,
         attrs: ProductAttributes | None = None,
     ) -> JudgeResult:
         try:
-            llm = _get_judge_llm()
             prompt = (
                 _JUDGE_PROMPT
                 .replace("PLATFORM_PH", listing.platform)
@@ -93,7 +97,7 @@ class LLMJudge:
                 .replace("CATEGORY_PH", attrs.category if attrs else "Unknown")
                 .replace("FEATURES_PH", ", ".join(attrs.features) if attrs else "Unknown")
             )
-            response = llm.invoke(prompt)
+            response = self._llm.invoke(prompt)
             data = json.loads(response.content)
             dims: dict[str, float] = {}
             for dim in _JUDGE_WEIGHTS:

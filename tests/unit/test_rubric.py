@@ -45,3 +45,14 @@ def test_oscillation_detected():
     assert rubric.is_oscillating(scores=[0.70, 0.80, 0.71]) is True
     assert rubric.is_oscillating(scores=[0.70, 0.80, 0.90]) is False
     assert rubric.is_oscillating(scores=[0.70]) is False
+
+
+def test_keep_populated_from_perfect_dimensions():
+    rubric = ScoringRubric()
+    rules = RulesResult(
+        composite=0.9,
+        dimensions={"title_length_compliance": 1.0, "keyword_presence": 0.5},
+    )
+    result = rubric.composite(rules_result=rules, judge_result=None)
+    assert "title_length_compliance" in result.keep
+    assert "keyword_presence" not in result.keep
