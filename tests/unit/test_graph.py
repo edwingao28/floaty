@@ -111,6 +111,7 @@ def test_graph_end_to_end_happy_path():
     assert listing.score >= 0.0
     # Loop exited cleanly — errors should be absent or empty
     assert result.get("errors", []) == []
+    assert result.get("publish_results", {}).get("shopify", {}).get("status") == "success"
 
 
 # ---------------------------------------------------------------------------

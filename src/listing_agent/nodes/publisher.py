@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 from typing import Any
 
 from listing_agent.state import AgentState, GeneratedListing
@@ -21,7 +22,7 @@ def _publish_shopify(listing: GeneratedListing) -> dict[str, Any]:
 
 
 def _publish_amazon(listing: GeneratedListing) -> dict[str, Any]:
-    sku = f"listing-agent-{hash(listing.title) % 10**8:08d}"
+    sku = f"listing-agent-{hashlib.sha256(listing.title.encode()).hexdigest()[:8]}"
     return amazon_put_listing.invoke({
         "sku": sku,
         "title": listing.title,
@@ -32,10 +33,12 @@ def _publish_amazon(listing: GeneratedListing) -> dict[str, Any]:
 
 
 def _publish_etsy(listing: GeneratedListing) -> dict[str, Any]:
+    if listing.price is None:
+        return {"status": "error", "error": "Etsy listing requires a price; set GeneratedListing.price before publishing"}
     return etsy_create_listing.invoke({
         "title": listing.title,
         "description": listing.description,
-        "price": 0.0,  # price must come from product data
+        "price": listing.price,
         "quantity": 1,
         "tags": listing.tags,
     })

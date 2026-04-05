@@ -43,6 +43,7 @@ class GeneratedListing(BaseModel):
     seo_description: str = ""
     backend_keywords: str = ""
     category_id: str = ""
+    price: float | None = None
     score: float | None = Field(default=None, ge=0.0, le=1.0)
     feedback: str | None = None
     iteration: int = Field(default=0, ge=0)
