@@ -91,11 +91,14 @@ def test_graph_end_to_end_happy_path():
         ),
         patch("listing_agent.nodes.critic.get_config", return_value=_make_config_mock()),
         patch("listing_agent.nodes.critic.LLMJudge") as mock_judge_cls,
+        patch("listing_agent.nodes.approval.interrupt", return_value={"decision": "approve_all"}),
+        patch("listing_agent.nodes.publisher.shopify_create_product") as mock_shopify,
     ):
         mock_judge_inst = MagicMock()
         from listing_agent.scoring.llm_judge import JudgeResult
         mock_judge_inst.evaluate.return_value = JudgeResult(composite=0.8, improvements=[])
         mock_judge_cls.return_value = mock_judge_inst
+        mock_shopify.invoke.return_value = {"status": "success", "product_id": "123"}
         graph = build_graph()
         result = graph.invoke(_INITIAL_STATE)
 
@@ -133,11 +136,14 @@ def test_graph_refinement_loop_reaches_max():
         ),
         patch("listing_agent.nodes.critic.get_config", return_value=_make_config_mock()),
         patch("listing_agent.nodes.critic.LLMJudge") as mock_judge_cls,
+        patch("listing_agent.nodes.approval.interrupt", return_value={"decision": "approve_all"}),
+        patch("listing_agent.nodes.publisher.shopify_create_product") as mock_shopify,
     ):
         mock_judge_inst = MagicMock()
         from listing_agent.scoring.llm_judge import JudgeResult
         mock_judge_inst.evaluate.return_value = JudgeResult(composite=0.1, improvements=[])
         mock_judge_cls.return_value = mock_judge_inst
+        mock_shopify.invoke.return_value = {"status": "success", "product_id": "123"}
         graph = build_graph()
         result = graph.invoke(initial_state)
 
@@ -168,11 +174,14 @@ def test_graph_error_propagation_invalid_analyzer_json():
         ),
         patch("listing_agent.nodes.critic.get_config", return_value=_make_config_mock()),
         patch("listing_agent.nodes.critic.LLMJudge") as mock_judge_cls,
+        patch("listing_agent.nodes.approval.interrupt", return_value={"decision": "approve_all"}),
+        patch("listing_agent.nodes.publisher.shopify_create_product") as mock_shopify,
     ):
         mock_judge_inst = MagicMock()
         from listing_agent.scoring.llm_judge import JudgeResult
         mock_judge_inst.evaluate.return_value = JudgeResult(composite=0.5, improvements=[])
         mock_judge_cls.return_value = mock_judge_inst
+        mock_shopify.invoke.return_value = {"status": "success", "product_id": "123"}
         graph = build_graph()
         result = graph.invoke(_INITIAL_STATE)
 
@@ -242,3 +251,13 @@ def test_selective_refinement_preserves_passing():
 
     # LLM was only called once (for amazon)
     assert generator_llm.invoke.call_count == 1
+
+
+# ---------------------------------------------------------------------------
+# Test 5: checkpointer parameter
+# ---------------------------------------------------------------------------
+
+
+def test_graph_accepts_checkpointer():
+    graph = build_graph(checkpointer=None)
+    assert graph is not None
