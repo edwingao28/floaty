@@ -67,17 +67,20 @@ def shopify_create_product(
         if seo_description:
             product_input["seo"]["description"] = seo_description
 
-    data = _graphql(_CREATE_MUTATION, {"input": product_input})
-    result = data.get("data", {}).get("productCreate", {})
-    user_errors = result.get("userErrors", [])
-    if user_errors:
-        return {"status": "error", "errors": user_errors}
-    product = result.get("product", {})
-    return {
-        "status": "success",
-        "product_id": product.get("id"),
-        "handle": product.get("handle"),
-    }
+    try:
+        data = _graphql(_CREATE_MUTATION, {"input": product_input})
+        result = data.get("data", {}).get("productCreate", {})
+        user_errors = result.get("userErrors", [])
+        if user_errors:
+            return {"status": "error", "errors": user_errors}
+        product = result.get("product", {})
+        return {
+            "status": "success",
+            "product_id": product.get("id"),
+            "handle": product.get("handle"),
+        }
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
 
 
 @tool
@@ -89,16 +92,20 @@ def shopify_update_product(
 ) -> dict[str, Any]:
     """Update an existing Shopify product."""
     product_input: dict[str, Any] = {"id": product_id}
-    if title:
+    if title is not None:
         product_input["title"] = title
-    if description_html:
+    if description_html is not None:
         product_input["descriptionHtml"] = description_html
     if tags is not None:
         product_input["tags"] = tags
 
-    data = _graphql(_UPDATE_MUTATION, {"input": product_input})
-    result = data.get("data", {}).get("productUpdate", {})
-    user_errors = result.get("userErrors", [])
-    if user_errors:
-        return {"status": "error", "errors": user_errors}
-    return {"status": "success", "product_id": product_id}
+    try:
+        data = _graphql(_UPDATE_MUTATION, {"input": product_input})
+        result = data.get("data", {}).get("productUpdate", {})
+        user_errors = result.get("userErrors", [])
+        if user_errors:
+            return {"status": "error", "errors": user_errors}
+        product = result.get("product", {})
+        return {"status": "success", "product_id": product.get("id"), "handle": product.get("handle")}
+    except Exception as e:
+        return {"status": "error", "error": str(e)}

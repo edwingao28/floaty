@@ -1,5 +1,4 @@
-import json
-from unittest.mock import AsyncMock, patch, MagicMock
+from unittest.mock import patch, MagicMock
 
 import pytest
 
@@ -75,3 +74,29 @@ def test_create_product_user_errors(mock_config):
 
     assert result["status"] == "error"
     assert "Handle already exists" in str(result["errors"])
+
+
+def test_update_product_success(mock_config):
+    response_data = {
+        "data": {
+            "productUpdate": {
+                "product": {"id": "gid://shopify/Product/123", "handle": "test-mug"},
+                "userErrors": [],
+            }
+        }
+    }
+    with patch("listing_agent.tools.shopify.get_config", return_value=mock_config), \
+         patch("listing_agent.tools.shopify.httpx") as mock_httpx:
+        mock_client = MagicMock()
+        mock_client.__enter__ = MagicMock(return_value=mock_client)
+        mock_client.__exit__ = MagicMock(return_value=False)
+        mock_client.post.return_value = _mock_response(response_data)
+        mock_httpx.Client.return_value = mock_client
+
+        result = shopify_update_product.invoke({
+            "product_id": "gid://shopify/Product/123",
+            "title": "Updated Mug",
+        })
+
+    assert result["status"] == "success"
+    assert result["product_id"] == "gid://shopify/Product/123"

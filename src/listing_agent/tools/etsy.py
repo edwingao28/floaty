@@ -61,7 +61,7 @@ def etsy_create_listing(
     }
     if tags:
         body["tags"] = tags
-    if taxonomy_id:
+    if taxonomy_id is not None:
         body["taxonomy_id"] = taxonomy_id
 
     try:
@@ -94,9 +94,9 @@ def etsy_update_listing(
 
     config = get_config()
     body: dict[str, Any] = {}
-    if title:
+    if title is not None:
         body["title"] = title
-    if description:
+    if description is not None:
         body["description"] = description
     if tags is not None:
         body["tags"] = tags
