@@ -26,6 +26,13 @@ class Settings(BaseSettings):
     QUALITY_THRESHOLD: float = Field(default=0.8, ge=0.0, le=1.0)
     MAX_REFINEMENTS: int = Field(default=3, ge=1, le=10)
 
+    # --- Scoring ---
+    RULES_WEIGHT: float = Field(default=0.6, ge=0.0, le=1.0)
+    LLM_WEIGHT: float = Field(default=0.4, ge=0.0, le=1.0)
+    CONVERGENCE_DELTA: float = Field(default=0.03, ge=0.0)
+    OSCILLATION_WINDOW: int = Field(default=2, ge=1)
+    LLM_JUDGE_SAMPLE_RATE: float = Field(default=1.0, ge=0.0, le=1.0)
+
     # --- Storage ---
     CHROMA_DB_PATH: str = "./data/chroma_db"
     DATABASE_URL: str = "sqlite:///data/checkpoints.db"
